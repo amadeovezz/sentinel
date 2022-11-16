@@ -1,13 +1,21 @@
+# standard lib
+import json
+import logging
+
+# 3rd party
+# lib
 from puller import S3Puller
 from image_process import ImageProcess
 
-
 if __name__ == '__main__':
 
-    # Find and filter data
-    config = {}
+    logging.basicConfig(level=logging.ERROR, format='%(message)s')
+    # Get creds
+    f = open('./keys/aws.json')
+    creds = json.load(f)
 
-    puller = S3Puller(config)
+    # Find and filter data
+    puller = S3Puller(creds)
     puller.connect()
     images = puller.pull_images()
 
