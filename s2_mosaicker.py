@@ -13,9 +13,10 @@ if __name__ == '__main__':
     # Get creds
     f = open('./keys/aws.json')
     creds = json.load(f)
+    tile_id = '60DVA'
 
     # Find and filter data
-    puller = S3Puller(creds)
+    puller = S3Puller(config=creds, tile_id=tile_id)
     puller.connect()
     images = puller.pull_images()
 
