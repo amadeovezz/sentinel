@@ -22,24 +22,16 @@ class SatPuller:
 
 
 class S3Puller(SatPuller):
-    config = {}
+
     BUCKET = "sentinel-s2-l1c"
 
     # Tile id
-    tile_id = ''
     utm: str
     lat_band: str
     square: str
 
     # Other
     s3_client = None
-    start: datetime
-    end: datetime
-
-    # File paths to store bandschannels
-    red_band_path = ''
-    green_band_path = ''
-    blue_band_path = ''
 
     BAND_MAPPING = {
         'red': 'B04.jp2'
@@ -48,7 +40,7 @@ class S3Puller(SatPuller):
     }
 
     def __init__(self
-                 , config={}
+                 , config=Dict
                  , tile_id: str = ''
                  , start: str = ''
                  , end: str = ''
@@ -99,7 +91,6 @@ class S3Puller(SatPuller):
         return utm, lat_band, square
 
     def connect(self):
-
         # Create one session
         session = boto3.Session(
             aws_access_key_id=self.config['id']
@@ -170,7 +161,7 @@ class S3Puller(SatPuller):
 
     def pull_images(self) -> int:
         s3_paths = self.find_s3_file_paths()
-        with futures.ThreadPoolExecutor(max_workers=30) as executor:
+        with futures.ThreadPoolExecutor(max_workers=3) as executor:
             executor.submit(self.download_images,self.s3_client, s3_paths['red'], self.red_band_path)
             executor.submit(self.download_images,self.s3_client, s3_paths['blue'], self.blue_band_path)
             executor.submit(self.download_images,self.s3_client, s3_paths['green'], self.green_band_path)
