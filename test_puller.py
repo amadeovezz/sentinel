@@ -46,18 +46,21 @@ class TestS3Puller:
                 ,'LastModified': datetime(2019, 12, 3, 19, 48, 19, tzinfo=tzutc())
                 , 'id': 4}
 
+            , {'Key': 'tiles/9/D/VA/2019/12/3/0/preview/B03.jp2'
+                ,'LastModified': datetime(2019, 12, 3, 19, 48, 19, tzinfo=tzutc())
+                , 'id': 5}
+
             , {'Key': 'tiles/9/D/VA/2020/2/22/0/B04.jp2'
                 ,'LastModified': datetime(2020, 2, 22, 19, 48, 19, tzinfo=tzutc())
-                , 'id': 5}
+                , 'id': 6}
 
             , {'Key': 'tiles/9/D/VA/2021/4/19/0/B01.jp2',
                'LastModified': datetime(2021, 4, 19, 19, 48, 19, tzinfo=tzutc())
-                , 'id': 6}
+                , 'id': 7}
         ]
 
         start = '2019-08-26T02:44:33.000000Z'
         end = '2021-08-26T02:44:33.000000Z'
         puller = S3Puller(tile_id="8DVA", start=start, end=end)
-        filtered_list = puller.filter_s3_files(s3_response)
-        assert filtered_list[0]['id'] == 4
-        assert filtered_list[1]['id'] == 5
+        filtered_list = puller.filter_s3_files(s3_response, band='red')
+        assert filtered_list[0]['id'] == 6
