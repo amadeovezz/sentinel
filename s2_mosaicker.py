@@ -5,7 +5,7 @@ import logging
 # 3rd party
 # lib
 from puller import S3Puller
-from image_process import BinaryImageProcessor, WindowImageProcessor
+from image_process import WindowImageProcessor
 
 if __name__ == '__main__':
 
