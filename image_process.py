@@ -16,7 +16,7 @@ class ImageProcessor:
     IMG_SHAPE_H = 10980
 
     def __init__(self
-                 , dest_path: str = './tmp/final'
+                 , dest_path: str = './tmp/final/'
                  , red_band_path: str = './tmp/red/'
                  , green_band_path: str = './tmp/green/'
                  , blue_band_path: str = './tmp/blue/'):
@@ -29,6 +29,13 @@ class ImageProcessor:
     def num_files_in_dir(path: str):
         _, _, files = next(os.walk(path))
         return len(files)
+
+    # TODO: fix api
+    def compute_rgb_median(self):
+        raise NotImplemented
+
+    def create_composite(self, arr: np.array):
+        raise NotImplemented
 
 
 class BinaryImageProcessor(ImageProcessor):
@@ -57,9 +64,12 @@ class BinaryImageProcessor(ImageProcessor):
                 logging.info(f'writing {jp2_file} to disk as binary ...')
                 f = rasterio.open(jp2_file)
                 file_name = file.split('.')[0]
-                np.save(f'{path_to_save}{file_name}', f.read(1))
+                self.save_np_array(f'{path_to_save}{file_name}', f.read(1))
 
-    def load_np_file(self, path:str):
+    def save_np_array(self, path_to_save: str, arr: np.array):
+        np.save(path_to_save, arr)
+
+    def load_np_file(self, path: str):
         return np.load(path)
 
     def load_binary_files(self, path: str) -> np.array:
@@ -71,30 +81,32 @@ class BinaryImageProcessor(ImageProcessor):
             output_arr[idx] = self.load_np_file(f'{path}{file}')
         return output_arr
 
-    def compute_median(self, path: str) -> np.array:
-        all_images_arr = self.load_binary_files(path)
+    def compute_median(self, band: str, binary_file_path: str) -> np.array:
+        all_images_arr = self.load_binary_files(binary_file_path)
+        logging.info('computing median...')
+        # TODO: fix this
         output_arr = np.median(all_images_arr, axis=0)
-        print(output_arr)
+        np.save(f'{self.dest_path}-{band}',output_arr)
 
-    def compute_medians_across_bands(self):
+    def compute_rgb_median(self):
         logging.info(f'computing medians...')
         with futures.ProcessPoolExecutor(max_workers=3) as executor:
-            executor.submit(self.compute_median, f'{self.red_band_path}{self.np_binary_path}')
-            executor.submit(self.compute_median, f'{self.blue_band_path}{self.np_binary_path}')
-            executor.submit(self.compute_median, f'{self.green_band_path}{self.np_binary_path}')
-
+            executor.submit(self.compute_median, 'red', f'{self.red_band_path}{self.np_binary_path}')
+            executor.submit(self.compute_median,'blue', f'{self.blue_band_path}{self.np_binary_path}')
+            executor.submit(self.compute_median, 'green', f'{self.green_band_path}{self.np_binary_path}')
         executor.shutdown()
 
-    def create_composite_image(self, images: np.array) -> np.array:
-        pass
-
-    def save(self, images: np.array):
+    def create_composite(self, arr: np.array):
         pass
 
 
 class WindowImageProcess(ImageProcessor):
-    WINDOW_SIZE_ROW = (0, 1000)
+    # Always compute across columns
     WINDOW_SIZE_COLUMN = (0, 10980)
+
+    def __init__(self, window_size_row=2000,  **kwargs):
+        super().__init__(**kwargs)
+        self.window_size_row = window_size_row
 
     @staticmethod
     def compute_median(arr: np.array) -> float:
@@ -112,38 +124,41 @@ class WindowImageProcess(ImageProcessor):
             middle_idx = round((arr_len / 2))
             return non_zero[middle_idx]
 
-    def __init__(self, **kwargs):
-        super().__init__(**kwargs)
 
-    def compute_median_across_band(self, path: str) -> np.array:
+    def compute_rgb_median(self):
         """
-        This is slow...
-
         :param path:
         :return:
         """
+        # TODO: include all paths
+        path = self.red_band_path
+
         num_of_files = self.num_files_in_dir(path)
         logging.info(f'computing median across {num_of_files} images in: {path}')
 
         output_arr = np.zeros((self.IMG_SHAPE_W, self.IMG_SHAPE_H))
 
-        # Start filling in our output_arr one row at a time
-        for row_idx in range(0, self.IMG_SHAPE_W):
-            logging.info(f'computing median across all {row_idx} rows')
-            # Fetch one row at a time for every img and store in combined_rows_arr
-            combined_rows_arr = np.zeros((num_of_files, self.IMG_SHAPE_H))
+        for row_idx in range(0, self.IMG_SHAPE_W, self.window_size_row):
+            logging.info(f'computing median across {num_of_files} and {self.window_size_row} rows')
+
+            # Fetch rows for every img and store in combined_rows_arr
+            if (self.IMG_SHAPE_W - row_idx) > self.window_size_row:
+                combined_rows_arr = np.zeros(
+                    (num_of_files, self.window_size_row, self.IMG_SHAPE_H)
+                )
+            else:
+                combined_rows_arr = np.zeros(
+                    (num_of_files, self.IMG_SHAPE_W - row_idx, self.IMG_SHAPE_H)
+                )
 
             for i, file in enumerate(os.listdir(path)):
                 with rasterio.open(f'{path}{file}') as src:
-                    arr = src.read(1, window=Window.from_slices(self.WINDOW_SIZE_ROW, self.WINDOW_SIZE_COLUMN))
-                    combined_rows_arr[i] = arr[0]
+                    arr = src.read(1, window=Window.from_slices(
+                        (row_idx, row_idx + self.window_size_row), self.WINDOW_SIZE_COLUMN)
+                    )
+                    combined_rows_arr[i] = arr
 
-            # Compute median down columns
-            median_arr = np.zeros(self.IMG_SHAPE_H)
-            for col_idx, col in enumerate(combined_rows_arr.T):
-                median_arr[col_idx] = self.compute_median(col)
-
-            # Assign value to output array
-            output_arr[row_idx] = median_arr
+            # Compute median and assign value to output array
+            output_arr[row_idx: row_idx + self.window_size_row, :] = np.median(combined_rows_arr, axis=0)
 
         return output_arr
