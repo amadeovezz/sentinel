@@ -39,7 +39,6 @@ class ImageProcessor:
 
 
 class WindowImageProcessor(ImageProcessor):
-    # Always compute across all columns
 
     def __init__(self, window_size_row=2000, **kwargs):
         super().__init__(**kwargs)
@@ -71,8 +70,10 @@ class WindowImageProcessor(ImageProcessor):
                         (row_idx, row_idx + self.window_size_row), self.window_size_column))
                     combined_rows_arr[i] = arr
 
-            # Compute median and assign value to output array
-            output_arr[row_idx: row_idx + self.window_size_row, :] = np.median(combined_rows_arr, axis=0)
+            #Compute median and assign value to output array
+            filtered_zeros = np.where(combined_rows_arr == 0.0, np.nan, combined_rows_arr)
+            np.nanmedian(filtered_zeros, axis=0)
+            output_arr[row_idx: row_idx + self.window_size_row, :] = np.nanmedian(filtered_zeros, axis=0)
 
         return output_arr
 
@@ -103,7 +104,7 @@ class WindowImageProcessor(ImageProcessor):
         meta.update(count=3)
         meta['driver'] = 'GTiff'
 
-        dest = f'{self.dest_path}stacked.tiff'
+        dest = f'{self.dest_path}stacked-2.tiff'
         shutil.rmtree(self.dest_path, ignore_errors=True)
         os.makedirs(self.dest_path)
         # Read each layer from B->G->R and write it to stack
@@ -169,9 +170,9 @@ class BinaryImageProcessor(ImageProcessor):
             future_green = executor.submit(self.compute_median, 'green', f'{self.green_band_path}{self.np_binary_path}')
 
         output_arr = np.zeros((3, self.IMG_SHAPE_W, self.IMG_SHAPE_H))
-        output_arr[0] = future_red.result()
+        output_arr[0] = future_blue.result()
         output_arr[1] = future_green.result()
-        output_arr[2] = future_blue.result()
+        output_arr[2] = future_red.result()
         executor.shutdown()
         return output_arr
 
