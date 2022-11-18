@@ -5,7 +5,7 @@ import logging
 # 3rd party
 # lib
 from puller import S3Puller
-from image_process import BinaryImageProcessor
+from image_process import BinaryImageProcessor, WindowImageProcess
 
 if __name__ == '__main__':
 
@@ -25,9 +25,11 @@ if __name__ == '__main__':
         logging.fatal('failed to pull images...')
 
     # Manipulate data
-    process = BinaryImageProcessor()
-    process.jp2_files_to_binary()
-    process.compute_medians_across_bands()
+    process = WindowImageProcess()
+    arr = process.compute_rgb_median()
+    process.create_composite(arr)
+
+
 
 
 
