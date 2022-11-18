@@ -100,7 +100,7 @@ class BinaryImageProcessor(ImageProcessor):
         pass
 
 
-class WindowImageProcess(ImageProcessor):
+class WindowImageProcessor(ImageProcessor):
     # Always compute across columns
     WINDOW_SIZE_COLUMN = (0, 10980)
 
