@@ -130,6 +130,8 @@ class S3Puller(SatPuller):
         green_channel_paths = []
         blue_channel_paths = []
         for page in page_iterator:
+            if 'Contents' not in page:
+                logging.fatal('no files found...')
             red_channel_paths.append(self.filter_s3_files(page['Contents'], band='red'))
             green_channel_paths.append(self.filter_s3_files(page['Contents'], band='green'))
             blue_channel_paths.append(self.filter_s3_files(page['Contents'], band='blue'))
