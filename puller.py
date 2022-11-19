@@ -5,6 +5,8 @@ from dateutil import parser
 import logging
 import os
 from concurrent import futures
+from abc import ABC, abstractmethod
+
 
 # 3rd party
 import numpy as np
@@ -12,18 +14,25 @@ import boto3
 import botocore
 
 
-class SatPuller:
+class ImagePuller(ABC):
 
+    @abstractmethod
     def connect(self):
         raise NotImplemented
 
+    @abstractmethod
     def pull_images(self) -> int:
         raise NotImplemented
 
 
-class S3Puller(SatPuller):
+class S3Puller(ImagePuller):
 
     BUCKET = "sentinel-s2-l1c"
+    BAND_MAPPING = {
+        'red': 'B04.jp2'
+        , 'green': 'B03.jp2'
+        , 'blue': 'B02.jp2'
+    }
 
     # Tile id
     utm: str
@@ -33,11 +42,6 @@ class S3Puller(SatPuller):
     # Other
     s3_client = None
 
-    BAND_MAPPING = {
-        'red': 'B04.jp2'
-        , 'green': 'B03.jp2'
-        , 'blue': 'B02.jp2'
-    }
 
     def __init__(self
                  , config=Dict
