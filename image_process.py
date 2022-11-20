@@ -52,11 +52,11 @@ class ImageProcessor(ABC):
         dest = f'{self.dest_path}final.tiff'
         shutil.rmtree(self.dest_path, ignore_errors=True)
         os.makedirs(self.dest_path)
-        # Read each layer from B->G->R and write it to stack
+        # Write each layer from B->G->R
         with rasterio.open(dest, 'w', **meta) as dst:
-            dst.write_band(1, arr_map['red'])
+            dst.write_band(1, arr_map['blue'])
             dst.write_band(2, arr_map['green'])
-            dst.write_band(3, arr_map['blue'])
+            dst.write_band(3, arr_map['red'])
 
 
 class ArrayMerger(ABC):
@@ -88,7 +88,9 @@ class MedianMerger(ArrayMerger):
     def merge(self, arr: np.ndarray) -> np.ndarray:
         filtered_zeros = np.where(arr == 0.0, np.nan, arr)
         np.nanmedian(filtered_zeros, axis=0)
-        return np.nanmedian(filtered_zeros, axis=0)
+        filtered = np.nanmedian(filtered_zeros, axis=0)
+        # To revisit: what if we get images where the median is in fact 0?
+        return np.nan_to_num(filtered, nan=0)
 
 
 class WindowImageProcessor(ImageProcessor):
@@ -129,14 +131,14 @@ class WindowImageProcessor(ImageProcessor):
             else:
                 multiple_versions_arr = np.zeros((num_of_files, self.IMG_SHAPE_W - row_idx, self.IMG_SHAPE_H))
 
-            # Store are windows for each in file in multiple_versions_arr
+            # Store all windows for each in file in multiple_versions_arr
             for i, file in enumerate(os.listdir(path)):
                 with rasterio.open(f'{path}{file}') as src:
                     arr = src.read(1, window=Window.from_slices(
                         (row_idx, row_idx + self.window_size_row), self.window_size_column))
                     multiple_versions_arr[i] = arr
 
-            # Process window
+            # Perform merging
             out = self.merger.merge(multiple_versions_arr)
             output_arr[row_idx: row_idx + self.window_size_row, :] = out
 
