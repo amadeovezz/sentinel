@@ -17,8 +17,9 @@ from image_process import WindowImageProcessor, MedianMerger
 @click.argument('OUTPUT_PATH', default='./tmp/final/')
 @click.option('--AWS_PATH', default='./keys/aws.json/')
 @click.option('--LOGGING_LEVEL', default='INFO')
-@click.option('--has_pulled', default=True, is_flag=True)
-def main(tile_id, start_datetime, end_datetime, output_path, aws_path, logging_level, has_pulled: bool):
+@click.option('--COMBINE_METHOD', default='median')
+@click.option('--has_pulled', default=False, is_flag=True)
+def main(tile_id, start_datetime, end_datetime, output_path, aws_path, combine_method, logging_level, has_pulled: bool):
 
     logging.basicConfig(level=logging.getLevelName(logging_level), format='%(message)s')
 
@@ -34,8 +35,11 @@ def main(tile_id, start_datetime, end_datetime, output_path, aws_path, logging_l
             logging.fatal('failed to pull images...')
 
     # Manipulate data
+    merger = None
+    if combine_method == 'median':
+        merger = MedianMerger()
 
-    process = WindowImageProcessor(merger=MedianMerger, window_size_row=1000, dest_path=output_path)
+    process = WindowImageProcessor(merger=merger, window_size_row=1000, dest_path=output_path)
     final_imgs = process.process()
     process.create_composite(final_imgs)
 
