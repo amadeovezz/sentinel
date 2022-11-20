@@ -86,11 +86,24 @@ class ArrayMerger(ABC):
 
 class MedianMerger(ArrayMerger):
     def merge(self, arr: np.ndarray) -> np.ndarray:
-        filtered_zeros = np.where(arr == 0.0, np.nan, arr)
+        """
+        :param arr: The 3d array to merge
+
+        Converts 0's to nan's, and we leverage nanmedian() here.
+        Any nan that does not get converted to a 0 implies that all versions of the same image
+        have intensity values 0. This seems unlikely but worth diving deeper on.
+
+        Also note that we return the same type of the ndarray that was passed in.
+        For uint16 jp2 images this means that if we have an even amount of numbers: 2,3
+        the np.nanmedian() will return 2.5, however when cast it back to uint16 our median will
+        rounded down to 2 (the cast always rounds down). To revisit if this is desirable behaviour.
+
+        :return:
+        """
+        filtered_zeros = np.where(arr == 0, np.nan, arr)
         np.nanmedian(filtered_zeros, axis=0)
         filtered = np.nanmedian(filtered_zeros, axis=0)
-        # To revisit: what if we get images where the median is in fact 0?
-        return np.nan_to_num(filtered, nan=0)
+        return np.nan_to_num(filtered, nan=0).astype(arr.dtype)
 
 
 class WindowImageProcessor(ImageProcessor):
@@ -115,9 +128,14 @@ class WindowImageProcessor(ImageProcessor):
         }
 
     def window(self, band: str, path: str) -> np.ndarray:
+        # Get some meta-data before we proceed
         num_of_files = self.num_files_in_dir(path)
-        output_arr = np.zeros((self.IMG_SHAPE_W, self.IMG_SHAPE_H))
+        files = os.listdir(path)
+        meta = self.get_profile(f'{path}{files[0]}')
+        dtype = meta['dtype']
 
+        # Create output array
+        output_arr = np.zeros((self.IMG_SHAPE_W, self.IMG_SHAPE_H), dtype=dtype)
         logging.info(f'computing {band} band median across {num_of_files}'
                      f' with window size: {self.window_size_row} by {self.IMG_SHAPE_H}')
 
@@ -127,9 +145,9 @@ class WindowImageProcessor(ImageProcessor):
 
             # Are we at the last iteration?
             if (self.IMG_SHAPE_W - row_idx) > self.window_size_row:
-                multiple_versions_arr = np.zeros((num_of_files, self.window_size_row, self.IMG_SHAPE_H))
+                multiple_versions_arr = np.zeros((num_of_files, self.window_size_row, self.IMG_SHAPE_H), dtype=dtype)
             else:
-                multiple_versions_arr = np.zeros((num_of_files, self.IMG_SHAPE_W - row_idx, self.IMG_SHAPE_H))
+                multiple_versions_arr = np.zeros((num_of_files, self.IMG_SHAPE_W - row_idx, self.IMG_SHAPE_H), dtype=dtype)
 
             # Store all windows for each in file in multiple_versions_arr
             for i, file in enumerate(os.listdir(path)):

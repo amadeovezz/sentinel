@@ -18,14 +18,14 @@ class TestMedianMerger:
             [
                 [[1, 1, 1],
                  [1, 1, 1]]
-              , [[3, 3, 3],
-                 [5, 5, 5]]
-            ],
+              , [[3, 2, 3],
+                 [5, 6, 7]]
+            ], dtype='uint16'
         )
         m = MedianMerger()
         out = m.merge(arr)
-        assert np.all(out[0, :] == np.array([2, 2, 2]))
-        assert np.all(out[1, :] == np.array([3, 3, 3]))
+        assert np.all(out[0, :] == np.array([2, 1, 2]))
+        assert np.all(out[1, :] == np.array([3, 3, 4]))
 
     def test_compute_median_odd(self):
         arr = np.array(
@@ -36,24 +36,21 @@ class TestMedianMerger:
                  [7, 5, 3]]
               , [[5, 5, 5],
                  [5, 10, 1]]
-            ],
+            ], dtype='uint16'
         )
         m = MedianMerger()
         out = m.merge(arr)
         assert np.all(out[0, :] == np.array([3, 3, 3]))
-        assert out[1, 0] == 5
-        assert out[1, 1] == 5
-        assert out[1, 2] == 1
+        assert np.all(out[1, :] == np.array([5, 5, 1]))
 
     def test_all_zero(self):
-        # To revisit
         arr = np.array(
             [
                 [[0, 0, 0],
                  [0, 0, 0]]
               , [[0, 0, 0],
                  [0, 0, 0]]
-            ],
+            ], dtype='uint16'
 
         )
         m = MedianMerger()
@@ -61,23 +58,20 @@ class TestMedianMerger:
         assert np.all(out[0, :] == np.array([0, 0, 0]))
         assert np.all(out[1, :] == np.array([0, 0, 0]))
 
-
-    def test_non_zero(self):
+    def test_different_types(self):
         arr = np.array(
             [
-                [[0, 0.0, 0],
+                [[0, 2.5, 0],
                  [1, 1, 1]]
               , [[3, 3, 3],
-                 [0, 0, 0]]
-              , [[5, 5, 5],
-                 [3, 3, 4]]
-            ],
+                 [0, 0.0, 1.3]]
+            ], dtype='uint16'
 
         )
         m = MedianMerger()
         out = m.merge(arr)
-        assert np.all(out[0, :] == np.array([4, 4, 4]))
-        assert np.all(out[1, :] == np.array([2, 2, 2.5]))
+        assert np.all(out[0, :] == np.array([3, 2, 3]))
+        assert np.all(out[1, :] == np.array([1, 1, 1]))
 
 
 @pytest.fixture()
@@ -105,7 +99,7 @@ def img_2():
 @pytest.fixture()
 def create_img(img, img_2, tmp_path):
     meta = {
-        'driver': 'JP2OpenJPEG', 'dtype': str(img.dtype)
+        'driver': 'GTiff', 'dtype': str(img.dtype)
         , 'height': img.shape[0], 'width': img.shape[1], 'count': 1
         , 'crs': crs.CRS.from_epsg(32709), 'transform': from_origin(10.0, 0.0, 399960.0, 0.0)
     }
@@ -126,11 +120,12 @@ def test_windowing(create_img, img, tmp_path):
                                 , dest_path='')
     process.IMG_SHAPE_W = img.shape[0]
     process.IMG_SHAPE_H = img.shape[1]
+
     arr = process.window('blue', f'{tmp_path}/')
     print(arr)
 
-    assert np.all(arr[0, :] == np.array([1,1,1,1,2]))
+    assert np.all(arr[0, :] == np.array([1,1,1,2,1]))
     assert np.all(arr[1, :] == np.array([2,2,2,2,2]))
     assert np.all(arr[2, :] == np.array([3,3,3,3,3]))
-    assert np.all(arr[3, :] == np.array([4.5,5,5.5,6,6.5]))
-    assert np.all(arr[4, :] == np.array([3,3,3,3,3]))
+    assert np.all(arr[3, :] == np.array([4,5,5,6,6]))
+    assert np.all(arr[1, :] == np.array([2,2,2,2,2]))
