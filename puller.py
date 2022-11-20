@@ -6,11 +6,11 @@ import logging
 import os
 from concurrent import futures
 from abc import ABC, abstractmethod
-
+import shutil
 
 # 3rd party
-import numpy as np
 import boto3
+from boto3.s3.transfer import TransferConfig
 import botocore
 
 
@@ -26,7 +26,6 @@ class ImagePuller(ABC):
 
 
 class S3Puller(ImagePuller):
-
     BUCKET = "sentinel-s2-l1c"
     BAND_MAPPING = {
         'red': 'B04.jp2'
@@ -41,16 +40,16 @@ class S3Puller(ImagePuller):
 
     # Other
     s3_client = None
-
+    transfer_config = None
 
     def __init__(self
                  , config=Dict
                  , tile_id: str = ''
                  , start: str = ''
                  , end: str = ''
-                 , red_band_path: str ='./tmp/red/'
-                 , green_band_path: str ='./tmp/green/'
-                 , blue_band_path: str ='./tmp/blue/'
+                 , red_band_path: str = './tmp/red/'
+                 , green_band_path: str = './tmp/green/'
+                 , blue_band_path: str = './tmp/blue/'
                  ):
         self.config = config
         self.tile_id = tile_id
@@ -77,7 +76,7 @@ class S3Puller(ImagePuller):
 
         return list(filter(is_valid, l))
 
-    def parse_tile_id(self) -> Tuple:
+    def parse_tile_id(self) -> Tuple[str,str,str]:
         if len(self.tile_id) != 4:
             if len(self.tile_id) != 5:
                 logging.fatal('please enter a valid tile_id...')
@@ -105,6 +104,13 @@ class S3Puller(ImagePuller):
         botocore_config = botocore.config.Config(max_pool_connections=50)
         self.s3_client = boto3.client('s3', config=botocore_config)
 
+        # Improve download speed
+        self.transfer_config = TransferConfig(multipart_threshold=1024 * 25,
+                                              max_concurrency=20,
+                                              multipart_chunksize=(1024 * 1024), # MB
+                                              use_threads=True)
+
+        # Make sure connection is correct
         response = self.s3_client.head_object(Bucket=f'{self.BUCKET}'
                                               , RequestPayer='requester'
                                               , Key='readme.html')
@@ -125,6 +131,7 @@ class S3Puller(ImagePuller):
     def find_s3_file_paths(self) -> Dict:
         logging.info('searching for files in s3...')
         paginator = self.s3_client.get_paginator('list_objects')
+        # Server side filtering
         page_iterator = paginator.paginate(Bucket=self.BUCKET
                                            , Prefix=f'tiles/{self.utm}/{self.lat_band}/{self.square}/'
                                            , RequestPayer='requester'
@@ -147,18 +154,20 @@ class S3Puller(ImagePuller):
             , 'blue': self.flatten(blue_channel_paths)
         }
 
-    def download_image(self,s3_client, s3_file_path: str, download_path: str):
+    def download_image(self, s3_client, s3_file_path: str, download_path: str):
         logging.info(f'downloading {s3_file_path}...')
         s3_client.download_file(self.BUCKET
-                                     , s3_file_path
-                                     , download_path
-                                     , ExtraArgs={'RequestPayer': 'requester'})
+                                , s3_file_path
+                                , download_path
+                                , Config=self.transfer_config
+                                , ExtraArgs={'RequestPayer': 'requester'})
 
     def download_images(self, s3_client, s3_file_paths: List, path_to_download: str):
         logging.info(f'downloading files to {path_to_download} ...')
 
-        if not os.path.exists(path_to_download):
-            os.makedirs(path_to_download)
+        # Clear paths
+        shutil.rmtree(path_to_download, ignore_errors=True)
+        os.makedirs(path_to_download)
 
         for f in s3_file_paths:
             file_name = self.create_file_name(f['Key'], f['LastModified'])
@@ -168,9 +177,9 @@ class S3Puller(ImagePuller):
     def pull_images(self) -> int:
         s3_paths = self.find_s3_file_paths()
         with futures.ThreadPoolExecutor(max_workers=3) as executor:
-            executor.submit(self.download_images,self.s3_client, s3_paths['red'], self.red_band_path)
-            executor.submit(self.download_images,self.s3_client, s3_paths['blue'], self.blue_band_path)
-            executor.submit(self.download_images,self.s3_client, s3_paths['green'], self.green_band_path)
+            executor.submit(self.download_images, self.s3_client, s3_paths['red'], self.red_band_path)
+            executor.submit(self.download_images, self.s3_client, s3_paths['blue'], self.blue_band_path)
+            executor.submit(self.download_images, self.s3_client, s3_paths['green'], self.green_band_path)
 
         executor.shutdown()
 
