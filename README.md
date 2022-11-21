@@ -89,4 +89,4 @@ Notes:
 
 ## How to run
 
-WIP: troubleshooting docker...
+WIP: troubleshooting docker... Coming shortly 
