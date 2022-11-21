@@ -10,7 +10,7 @@ import rasterio
 from puller import S3Cli, RGBPuller
 from image_process import WindowImageProcessor, MedianMerger
 
-KEYS_DIR = '../../keys/aws.json'
+KEYS_DIR = './keys/aws.json'
 
 @pytest.fixture
 def config():
