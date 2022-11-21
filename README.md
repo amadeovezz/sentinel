@@ -9,6 +9,10 @@
   - file types are `.jp2`
   - interested in blue `BO2.jp2`, green `BO2.jp2`, and red `BO4.jp2` bands
 
+## Example output:
+
+check out `program-output.md`
+
 ## Program details 
 
 - Query for valid files on s3 using tile id and date
