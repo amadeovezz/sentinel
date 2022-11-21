@@ -7,7 +7,7 @@ from dateutil.tz import tzutc
 import pytest
 
 # lib
-from puller import RGBPuller, S3Puller
+from puller import RGBPuller, S3Cli
 
 def create_s3_response(
                          year_month_day: Tuple[int, int, int]
@@ -27,14 +27,14 @@ def create_s3_response(
 
 class TestRBGPuller:
 
-    s3_puller = S3Puller({}, '')
+    s3_cli = S3Cli({}, '')
 
     def test_single_char_UTM_parse(self):
         tile_id = "8DVA"
         start = '2017-08-26T02:44:33.000000Z'
         end = '2020-08-26T02:44:33.000000Z'
 
-        puller = RGBPuller(self.s3_puller, tile_id=tile_id, start=start, end=end)
+        puller = RGBPuller(self.s3_cli, tile_id=tile_id, start=start, end=end)
         parsed = puller.parse_tile_id()
         assert parsed[0] == '8'
         assert parsed[1] == 'D'
@@ -45,7 +45,7 @@ class TestRBGPuller:
         start = '2017-08-26T02:44:33.000000Z'
         end = '2020-08-26T02:44:33.000000Z'
 
-        puller = RGBPuller(self.s3_puller, tile_id=tile_id, start=start, end=end)
+        puller = RGBPuller(self.s3_cli, tile_id=tile_id, start=start, end=end)
         parsed = puller.parse_tile_id()
         assert parsed[0] == '60'
         assert parsed[1] == 'D'
@@ -63,7 +63,7 @@ class TestRBGPuller:
 
         start = '2017-08-26T02:44:33.000000Z'
         end = '2020-08-26T02:44:33.000000Z'
-        puller = RGBPuller(self.s3_puller, tile_id="8DVA", start=start, end=end)
+        puller = RGBPuller(self.s3_cli, tile_id="8DVA", start=start, end=end)
         filtered_list = puller.filter_s3_files(s3_response)
         assert filtered_list[0]['id'] == 3
         assert filtered_list[1]['id'] == 4
@@ -80,7 +80,7 @@ class TestRBGPuller:
 
         start = '2015-08-26T02:44:33.000000Z'
         end = '2021-08-26T02:44:33.000000Z'
-        puller = RGBPuller(self.s3_puller, tile_id="8DVA", start=start, end=end)
+        puller = RGBPuller(self.s3_cli, tile_id="8DVA", start=start, end=end)
         filtered_list = puller.filter_s3_files(s3_response)
         assert filtered_list[0]['id'] == 2
         assert filtered_list[1]['id'] == 4
@@ -98,7 +98,7 @@ class TestRBGPuller:
 
         start = '2013-08-26T02:44:33.000000Z'
         end = '2030-08-26T02:44:33.000000Z'
-        puller = RGBPuller(self.s3_puller, tile_id="8DVA", start=start, end=end)
+        puller = RGBPuller(self.s3_cli, tile_id="8DVA", start=start, end=end)
         filtered_list = puller.filter_s3_files(s3_response)
 
         red_paths = puller.group_by_band(filtered_list, 'red')

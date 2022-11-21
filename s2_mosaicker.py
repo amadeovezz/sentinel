@@ -6,7 +6,7 @@ import logging
 import click
 
 # lib
-from puller import S3Puller, RGBPuller
+from puller import S3Cli, RGBPuller
 from image_process import WindowImageProcessor, MedianMerger
 
 
@@ -28,8 +28,8 @@ def main(tile_id, start_datetime, end_datetime, output_path, aws_path, combine_m
         config = json.load(f)
 
         # Find and filter data
-        s3_puller = S3Puller(config=config)
-        rgb_puller = RGBPuller(s3_puller, tile_id, start_datetime, end_datetime)
+        s3_cli = S3Cli(config=config)
+        rgb_puller = RGBPuller(s3_cli, tile_id, start_datetime, end_datetime)
         success = rgb_puller.pull_images()
         if success != 0:
             logging.fatal('failed to pull images...')
