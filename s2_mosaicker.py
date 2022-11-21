@@ -6,7 +6,7 @@ import logging
 import click
 
 # lib
-from puller import S3Puller
+from puller import S3Puller, RGBPuller
 from image_process import WindowImageProcessor, MedianMerger
 
 
@@ -15,7 +15,7 @@ from image_process import WindowImageProcessor, MedianMerger
 @click.argument('START_DATETIME', default='2020-05-09T02:44:33.000000Z')
 @click.argument('END_DATETIME', default='2020-12-26T02:44:33.000000Z')
 @click.argument('OUTPUT_PATH', default='./tmp/final/')
-@click.option('--AWS_PATH', default='./keys/aws.json/')
+@click.option('--AWS_PATH', default='./keys/aws.json')
 @click.option('--LOGGING_LEVEL', default='INFO')
 @click.option('--COMBINE_METHOD', default='median')
 @click.option('--has_pulled', default=False, is_flag=True)
@@ -28,9 +28,9 @@ def main(tile_id, start_datetime, end_datetime, output_path, aws_path, combine_m
         config = json.load(f)
 
         # Find and filter data
-        puller = S3Puller(config=config, tile_id=tile_id, start=start_datetime, end=end_datetime)
-        puller.connect()
-        success = puller.pull_images()
+        s3_puller = S3Puller(config=config)
+        rgb_puller = RGBPuller(s3_puller, tile_id, start_datetime, end_datetime)
+        success = rgb_puller.pull_images()
         if success != 0:
             logging.fatal('failed to pull images...')
 

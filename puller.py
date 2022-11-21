@@ -1,11 +1,10 @@
 # standard lib
-from typing import List, Tuple, Dict
+from typing import List, Tuple, Dict, Callable
 from datetime import datetime
 from dateutil import parser
 import logging
 import os
 from concurrent import futures
-from abc import ABC, abstractmethod
 import shutil
 
 # 3rd party
@@ -14,84 +13,18 @@ from boto3.s3.transfer import TransferConfig
 import botocore
 
 
-class ImagePuller(ABC):
-
-    @abstractmethod
-    def connect(self):
-        raise NotImplemented
-
-    @abstractmethod
-    def pull_images(self) -> int:
-        raise NotImplemented
-
-
-class S3Puller(ImagePuller):
-    BUCKET = "sentinel-s2-l1c"
-    BAND_MAPPING = {
-        'red': 'B04.jp2'
-        , 'green': 'B03.jp2'
-        , 'blue': 'B02.jp2'
-    }
-
-    # Tile id
-    utm: str
-    lat_band: str
-    square: str
+class S3Puller:
 
     # Other
     s3_client = None
     transfer_config = None
 
     def __init__(self
-                 , config=Dict
-                 , tile_id: str = ''
-                 , start: str = ''
-                 , end: str = ''
-                 , red_band_path: str = './tmp/red/'
-                 , green_band_path: str = './tmp/green/'
-                 , blue_band_path: str = './tmp/blue/'
+                 , config: Dict
+                 , bucket: str = 'sentinel-s2-l1c'
                  ):
         self.config = config
-        self.tile_id = tile_id
-
-        parsed = self.parse_tile_id()
-        self.utm, self.lat_band, self.square = parsed[0], parsed[1], parsed[2]
-
-        self.start = parser.parse(start)
-        self.end = parser.parse(end)
-
-        self.red_band_path = red_band_path
-        self.green_band_path = green_band_path
-        self.blue_band_path = blue_band_path
-
-    def filter_s3_files(self, l: List, band: str) -> List:
-        def is_valid(response_obj):
-            # Ignore preview directory
-            if 'preview' not in response_obj['Key']:
-                if self.start <= response_obj['LastModified'] <= self.end:
-                    file_band = response_obj['Key'].split('/')[-1]
-                    if file_band == self.BAND_MAPPING[band]:
-                        return True
-            return False
-
-        return list(filter(is_valid, l))
-
-    def parse_tile_id(self) -> Tuple[str,str,str]:
-        if len(self.tile_id) != 4:
-            if len(self.tile_id) != 5:
-                logging.fatal('please enter a valid tile_id...')
-
-        utm = self.tile_id[0:2]
-        if utm[1].isalpha():
-            utm = self.tile_id[0]
-            lat_band = self.tile_id[1]
-            square = self.tile_id[2:]
-        else:
-            utm = self.tile_id[0:2]
-            lat_band = self.tile_id[2]
-            square = self.tile_id[3:]
-
-        return utm, lat_band, square
+        self.bucket = bucket
 
     def connect(self):
         # Create one session
@@ -111,58 +44,54 @@ class S3Puller(ImagePuller):
                                               use_threads=True)
 
         # Make sure connection is correct
-        response = self.s3_client.head_object(Bucket=f'{self.BUCKET}'
+        response = self.s3_client.head_object(Bucket=f'{self.bucket}'
                                               , RequestPayer='requester'
                                               , Key='readme.html')
 
         if response['ResponseMetadata']['HTTPStatusCode'] != 200:
-            logging.fatal(f'cannot establish connection with bucket: {self.BUCKET}...')
-        logging.info(f'successfully established connection with bucket: {self.BUCKET}...')
+            logging.fatal(f'cannot establish connection with bucket: {self.bucket}...')
+        logging.info(f'successfully established connection with bucket: {self.bucket}...')
 
     @staticmethod
     def flatten(l: List) -> List:
         return [item for sublist in l for item in sublist]
 
-    @staticmethod
-    def create_file_name(path: str, date: datetime) -> str:
-        l = path.split('/')
-        return f'{l[7]}-{l[4]}-{l[5]}-{l[6]}-{date.hour}-{l[8]}'
-
-    def find_s3_file_paths(self) -> Dict:
+    def find_s3_files(self, bucket_prefix: str, filter_func: Callable) -> List[Dict]:
+        """
+        :param bucket_prefix: The filepath to search
+        :param filter_func: A callable to perform filtering on
+        :return: a list that contains paths to files in S3 and associated meta-data
+        """
         logging.info('searching for files in s3...')
         paginator = self.s3_client.get_paginator('list_objects')
         # Server side filtering
-        page_iterator = paginator.paginate(Bucket=self.BUCKET
-                                           , Prefix=f'tiles/{self.utm}/{self.lat_band}/{self.square}/'
+        page_iterator = paginator.paginate(Bucket=self.bucket
+                                           , Prefix=bucket_prefix
                                            , RequestPayer='requester'
                                            , PaginationConfig={'PageSize': 1000})
 
-        red_channel_paths = []
-        green_channel_paths = []
-        blue_channel_paths = []
+        paths = []
         for page in page_iterator:
             if 'Contents' not in page:
                 logging.fatal('no files found...')
-            red_channel_paths.append(self.filter_s3_files(page['Contents'], band='red'))
-            green_channel_paths.append(self.filter_s3_files(page['Contents'], band='green'))
-            blue_channel_paths.append(self.filter_s3_files(page['Contents'], band='blue'))
+            contents = page['Contents']
+            paths.append(filter_func(contents))
 
-        logging.info(f'found {len(self.flatten(red_channel_paths))} files for each band...')
-        return {
-            'red': self.flatten(red_channel_paths)
-            , 'green': self.flatten(green_channel_paths)
-            , 'blue': self.flatten(blue_channel_paths)
-        }
+        return self.flatten(paths)
 
     def download_image(self, s3_client, s3_file_path: str, download_path: str):
         logging.info(f'downloading {s3_file_path}...')
-        s3_client.download_file(self.BUCKET
+        s3_client.download_file(self.bucket
                                 , s3_file_path
                                 , download_path
                                 , Config=self.transfer_config
                                 , ExtraArgs={'RequestPayer': 'requester'})
 
-    def download_images(self, s3_client, s3_file_paths: List, path_to_download: str):
+    def download_images(self
+                        , s3_client
+                        , s3_file_paths: List
+                        , path_to_download: str
+                        , filename_func: Callable):
         logging.info(f'downloading files to {path_to_download} ...')
 
         # Clear paths
@@ -170,17 +99,113 @@ class S3Puller(ImagePuller):
         os.makedirs(path_to_download)
 
         for f in s3_file_paths:
-            file_name = self.create_file_name(f['Key'], f['LastModified'])
+            file_name = filename_func(f)
             download_path = f'{path_to_download}{file_name}'
             self.download_image(s3_client, f['Key'], download_path)
 
-    def pull_images(self) -> int:
-        s3_paths = self.find_s3_file_paths()
-        with futures.ThreadPoolExecutor(max_workers=3) as executor:
-            executor.submit(self.download_images, self.s3_client, s3_paths['red'], self.red_band_path)
-            executor.submit(self.download_images, self.s3_client, s3_paths['blue'], self.blue_band_path)
-            executor.submit(self.download_images, self.s3_client, s3_paths['green'], self.green_band_path)
 
+class RGBPuller:
+
+    BAND_MAPPING = {
+        'red': 'B04.jp2'
+        , 'green': 'B03.jp2'
+        , 'blue': 'B02.jp2'
+    }
+
+    BUCKET = "sentinel-s2-l1c"
+
+    def __init__(self
+                 , s3_puller: S3Puller
+                 , tile_id: str = ''
+                 , start: str = ''
+                 , end: str = ''
+                 , red_band_path: str = './tmp/red/'
+                 , green_band_path: str = './tmp/green/'
+                 , blue_band_path: str = './tmp/blue/'
+                 ):
+
+        self.s3_puller = s3_puller
+
+        self.tile_id = tile_id
+        parsed = self.parse_tile_id()
+        self.utm, self.lat_band, self.square = parsed[0], parsed[1], parsed[2]
+
+        self.start = parser.parse(start)
+        self.end = parser.parse(end)
+
+        self.red_band_path = red_band_path
+        self.green_band_path = green_band_path
+        self.blue_band_path = blue_band_path
+        self.bucket_prefix = f'tiles/{self.utm}/{self.lat_band}/{self.square}/'
+
+    def pull_images(self) -> int:
+        self.s3_puller.connect()
+        s3_paths = self.s3_puller.find_s3_files(self.bucket_prefix, self.filter_s3_files)
+
+        with futures.ThreadPoolExecutor(max_workers=3) as executor:
+            executor.submit(self.s3_puller.download_images
+                            , self.s3_puller.s3_client
+                            , self.group_by_band(s3_paths, 'red')
+                            , self.red_band_path
+                            , self.create_file_name)
+
+            executor.submit(self.s3_puller.download_images
+                            , self.s3_puller.s3_client
+                            , self.group_by_band(s3_paths, 'blue')
+                            , self.blue_band_path
+                            , self.create_file_name)
+
+
+            executor.submit(self.s3_puller.download_images
+                            , self.s3_puller.s3_client
+                            , self.group_by_band(s3_paths, 'green')
+                            , self.green_band_path
+                            , self.create_file_name)
+
+        # TODO: catch exceptions here
         executor.shutdown()
 
         return 0
+
+    def group_by_band(self, l: List, band: str) -> List[str]:
+        def is_valid(response_obj):
+            # Ignore preview directory
+            file_band = response_obj['Key'].split('/')[-1]
+            if file_band == self.BAND_MAPPING[band]:
+                return True
+            return False
+        return list(filter(is_valid, l))
+
+    @staticmethod
+    def create_file_name(file_obj: Dict) -> str:
+        l = file_obj['Key'].split('/')
+        date = file_obj['LastModified']
+        return f'{l[7]}-{l[4]}-{l[5]}-{l[6]}-{date.hour}-{l[8]}'
+
+    def filter_s3_files(self, l: List[Dict]) -> List:
+        def is_valid(response_obj: Dict):
+            # Ignore preview directory
+            if 'preview' not in response_obj['Key']:
+                if self.start <= response_obj['LastModified'] <= self.end:
+                    file_band = response_obj['Key'].split('/')[-1]
+                    if file_band in [self.BAND_MAPPING['red'], self.BAND_MAPPING['green'], self.BAND_MAPPING['blue']]:
+                        return True
+            return False
+        return list(filter(is_valid, l))
+
+    def parse_tile_id(self) -> Tuple[str,str,str]:
+        if len(self.tile_id) != 4:
+            if len(self.tile_id) != 5:
+                logging.fatal('please enter a valid tile_id...')
+
+        utm = self.tile_id[0:2]
+        if utm[1].isalpha():
+            utm = self.tile_id[0]
+            lat_band = self.tile_id[1]
+            square = self.tile_id[2:]
+        else:
+            utm = self.tile_id[0:2]
+            lat_band = self.tile_id[2]
+            square = self.tile_id[3:]
+
+        return utm, lat_band, square
