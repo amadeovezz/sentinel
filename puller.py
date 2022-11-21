@@ -145,19 +145,19 @@ class RGBPuller:
         with futures.ThreadPoolExecutor(max_workers=3) as executor:
             executor.submit(self.s3_cli.download_images
                             , self.s3_cli.boto_client
-                            , self.group_by_band(s3_paths, 'red')
+                            , self.group_by_band(s3_paths, self.BAND_MAPPING,'red')
                             , self.red_band_path
                             , self.create_file_name)
 
             executor.submit(self.s3_cli.download_images
                             , self.s3_cli.boto_client
-                            , self.group_by_band(s3_paths, 'blue')
+                            , self.group_by_band(s3_paths, self.BAND_MAPPING,'blue')
                             , self.blue_band_path
                             , self.create_file_name)
 
             executor.submit(self.s3_cli.download_images
                             , self.s3_cli.boto_client
-                            , self.group_by_band(s3_paths, 'green')
+                            , self.group_by_band(s3_paths, self.BAND_MAPPING, 'green')
                             , self.green_band_path
                             , self.create_file_name)
 
@@ -166,11 +166,12 @@ class RGBPuller:
 
         return 0
 
-    def group_by_band(self, l: List, band: str) -> List[str]:
+    @staticmethod
+    def group_by_band(l: List, band_mapping: Dict, band: str) -> List[str]:
         def is_valid(response_obj):
             # Ignore preview directory
             file_band = response_obj['Key'].split('/')[-1]
-            if file_band == self.BAND_MAPPING[band]:
+            if file_band == band_mapping[band]:
                 return True
             return False
         return list(filter(is_valid, l))
@@ -182,6 +183,7 @@ class RGBPuller:
         return f'{l[7]}-{l[4]}-{l[5]}-{l[6]}-{date.hour}-{l[8]}'
 
     def filter_s3_files(self, l: List[Dict]) -> List:
+        # TODO: make this static
         def is_valid(response_obj: Dict):
             # Ignore preview directory
             if 'preview' not in response_obj['Key']:

@@ -101,7 +101,7 @@ class TestRBGPuller:
         puller = RGBPuller(self.s3_cli, tile_id="8DVA", start=start, end=end)
         filtered_list = puller.filter_s3_files(s3_response)
 
-        red_paths = puller.group_by_band(filtered_list, 'red')
+        red_paths = puller.group_by_band(filtered_list, puller.BAND_MAPPING, 'red')
 
         assert red_paths[0]['id'] == 2
         assert red_paths[1]['id'] == 6
