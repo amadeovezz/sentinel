@@ -118,8 +118,8 @@ def test_windowing(create_img, img, tmp_path):
     process = WindowImageProcessor(merger=MedianMerger()
                                 , window_size_row=2
                                 , dest_path='')
-    process.IMG_SHAPE_W = img.shape[0]
-    process.IMG_SHAPE_H = img.shape[1]
+    process.img_shape_w = img.shape[0]
+    process.img_shape_h = img.shape[1]
 
     arr = process.window('blue', f'{tmp_path}/')
     print(arr)

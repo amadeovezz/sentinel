@@ -39,7 +39,7 @@ def main(tile_id, start_datetime, end_datetime, output_path, aws_path, combine_m
     if combine_method == 'median':
         merger = MedianMerger()
 
-    process = WindowImageProcessor(merger=merger, window_size_row=1000, dest_path=output_path)
+    process = WindowImageProcessor(merger=merger, window_size_row=2000, dest_path=output_path)
     final_imgs = process.process()
     process.create_composite(final_imgs)
 

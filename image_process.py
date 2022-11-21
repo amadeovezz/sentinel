@@ -14,18 +14,22 @@ from rasterio.windows import Window
 
 
 class ImageProcessor(ABC):
-    IMG_SHAPE_W = 10980
-    IMG_SHAPE_H = 10980
 
     def __init__(self
+                 , img_shape_w :int = 10980
+                 , img_shape_h :int = 10980
                  , dest_path: str = './tmp/final/'
                  , red_band_path: str = './tmp/red/'
                  , green_band_path: str = './tmp/green/'
                  , blue_band_path: str = './tmp/blue/'):
+
+        self.img_shape_w = img_shape_w
+        self.img_shape_h = img_shape_h
         self.dest_path = dest_path
         self.red_band_path = red_band_path
         self.green_band_path = green_band_path
         self.blue_band_path = blue_band_path
+
 
     @abstractmethod
     def process(self) -> Dict[str, np.ndarray]:
@@ -52,11 +56,11 @@ class ImageProcessor(ABC):
         dest = f'{self.dest_path}final.tiff'
         shutil.rmtree(self.dest_path, ignore_errors=True)
         os.makedirs(self.dest_path)
-        # Write each layer from B->G->R
+        # Write each layer from R->G->B
         with rasterio.open(dest, 'w', **meta) as dst:
-            dst.write_band(1, arr_map['blue'])
-            dst.write_band(2, arr_map['green'])
-            dst.write_band(3, arr_map['red'])
+            dst.write(arr_map['red'], 1)
+            dst.write(arr_map['green'], 2)
+            dst.write(arr_map['blue'], 3)
 
 
 class ArrayMerger(ABC):
@@ -112,7 +116,7 @@ class WindowImageProcessor(ImageProcessor):
         super().__init__(**kwargs)
         self.merger = merger
         self.window_size_row = window_size_row
-        self.window_size_column = (0, self.IMG_SHAPE_H)
+        self.window_size_column = (0, self.img_shape_h)
 
     def process(self) -> Dict[str, np.array]:
         with futures.ProcessPoolExecutor(max_workers=3) as executor:
@@ -135,19 +139,19 @@ class WindowImageProcessor(ImageProcessor):
         dtype = meta['dtype']
 
         # Create output array
-        output_arr = np.zeros((self.IMG_SHAPE_W, self.IMG_SHAPE_H), dtype=dtype)
+        output_arr = np.zeros((self.img_shape_w, self.img_shape_h), dtype=dtype)
         logging.info(f'computing {band} band median across {num_of_files}'
-                     f' with window size: {self.window_size_row} by {self.IMG_SHAPE_H}')
+                     f' with window size: {self.window_size_row} by {self.img_shape_h}')
 
         # Iterate down the image in 'windows' - with origin top left
-        for row_idx in range(0, self.IMG_SHAPE_W, self.window_size_row):
+        for row_idx in range(0, self.img_shape_w, self.window_size_row):
             logging.info(f'windowing through {band} imgs, at idx: {row_idx} ...')
 
             # Are we at the last iteration?
-            if (self.IMG_SHAPE_W - row_idx) > self.window_size_row:
-                multiple_versions_arr = np.zeros((num_of_files, self.window_size_row, self.IMG_SHAPE_H), dtype=dtype)
+            if (self.img_shape_w - row_idx) > self.window_size_row:
+                multiple_versions_arr = np.zeros((num_of_files, self.window_size_row, self.img_shape_h), dtype=dtype)
             else:
-                multiple_versions_arr = np.zeros((num_of_files, self.IMG_SHAPE_W - row_idx, self.IMG_SHAPE_H), dtype=dtype)
+                multiple_versions_arr = np.zeros((num_of_files, self.img_shape_w - row_idx, self.img_shape_h), dtype=dtype)
 
             # Store all windows for each in file in multiple_versions_arr
             for i, file in enumerate(os.listdir(path)):
