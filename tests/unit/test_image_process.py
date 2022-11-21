@@ -128,4 +128,4 @@ def test_windowing(create_img, img, tmp_path):
     assert np.all(arr[1, :] == np.array([2,2,2,2,2]))
     assert np.all(arr[2, :] == np.array([3,3,3,3,3]))
     assert np.all(arr[3, :] == np.array([4,5,5,6,6]))
-    assert np.all(arr[1, :] == np.array([2,2,2,2,2]))
+    assert np.all(arr[4, :] == np.array([2,2,2,2,2]))
