@@ -49,7 +49,7 @@ From root dir: `python -m pytest tests/unit/`
 
 **Functional**
 
-Must have aws keys in: `'./keys/aws.json'`
+Must have aws keys configured in home directory .
 
 From root dir: `python -m pytest tests/functional/`
 
@@ -60,12 +60,12 @@ From root dir: `python -m pytest tests/functional/`
 
 This class:
 
-1. Searches for valid images to pull from s3.
+1. Searches for valid images to pull from s3. Filters images based on a time range using the file' `LAST_MODIFIED` timestamp.
 
 Searches the entire bucket on the bucket prefix: `tile_id`. Which has the path: `tiles/UTM/lattitude/square/`. This is quite slow, because boto3 does
 not provide any efficient way to perform server side filtering other than `prefix` and `delimeter`. 
 
-2. Downloads images.
+2. Download's images.
 
 This is also quite slow due to the size of the files, however, we can leverage threading here, and concurrently download each red,blue,green file accordingly. Multi-part downloading is also used to speed up this process.
 
@@ -78,7 +78,6 @@ to compute the median across multiple different timestamps of the files. This is
 
 2. Writes the result of each band to a composite image.
 
-
 Notes:
 
 1. Accessing the contents of a `jp2` file (a ndarray) into memory via rasterio's `f.read(1)`, is very slow.
@@ -86,11 +85,23 @@ Notes:
 
 ### Future Improvements
 
-- Improve memory and cpu performance for median processing:
+- Improve memory and cpu performance for image processing:
   - Investigate building a BlockImageProcessor (with raterio block reads and writes). Re-assembly logic may be challenging here.
 - Compute hash on multi-part download to ensure integrity of file
-- Look into scaling intensity values. I am using QGIS to view the output image, but this automatically rescales the intensity values so the image can be displayed correctly. JP2 is a lossy format by default
+- The intensity values in the GeoTiff appear to be slightly off. Look into scaling / re-sampling.
 
 ## How to run
 
-WIP: troubleshooting docker... Coming shortly 
+- `cd` (go to home directory)
+- `git clone https://github.com/amadeovezz/sentinel`
+- `mv sentinel scratch`
+- `docker run -it -v $HOME/scratch/:/scratch/ -v $HOME/.aws:/root/.aws/ sentinelhub/eolearn bash` (note $HOME is for fish shells)
+- `cd /scratch`
+- `python s2_mosaicker.py` 
+    - command line args default to:
+      - tile_id: `10UDV` 
+      - start: `2019-08-26T02:44:33.000000Z`
+      - end: `2019-09-07T18:42:22.000000Z`
+      - output path: `./tmp/final/combined_image.tiff`
+- To view options:
+  - `python s2_mosaicker --help`
