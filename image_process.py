@@ -51,9 +51,10 @@ class ImageProcessor(ABC):
         files = os.listdir(self.red_band_path)
         meta = self.get_profile(f'{self.red_band_path}{files[0]}')
         meta.update(count=3)
-        meta['driver'] = 'GTiff'
+        meta.update(driver='GTiff')
+        meta.update(photometric='RGB')
 
-        dest = f'{self.dest_path}final.tiff'
+        dest = f'{self.dest_path}combined_image.tiff'
         shutil.rmtree(self.dest_path, ignore_errors=True)
         os.makedirs(self.dest_path)
         # Write each layer from R->G->B
