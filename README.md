@@ -13,9 +13,9 @@
 
 Output after running: 
 
-`python s2_imagery_retriever.py 10UDV 2019-08-26T02:44:33.000000Z 2019-09-07T18:42:22.000000Z combined_image.tiff` 
+`python s2_mosaicker.py 10UDV 2019-08-26T02:44:33.000000Z 2019-09-07T18:42:22.000000Z /tmp/final/`
 
-Located at: https://github.com/amadeovezz/sentinel-image
+File is quite large: please use shared google drive link.
 
 Short tutorial and alternative output: check out `program-output.md`
 
