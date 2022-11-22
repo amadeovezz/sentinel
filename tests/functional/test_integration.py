@@ -109,7 +109,7 @@ def test_find_download_and_process(preview_bucket_prefix, filter_rgb, tmp_path):
     assert final_images['green'].shape[1] == 687
 
     w.create_composite(final_images)
-    composite = rasterio.open(f'{dest_path}final.tiff')
+    composite = rasterio.open(f'{dest_path}combined_image.tiff')
     assert composite.profile['count'] == 3
     # Read as a single image
     assert composite.read(1).shape == (687,687)
