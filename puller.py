@@ -20,21 +20,17 @@ class S3Cli:
     transfer_config = None
 
     def __init__(self
-                 , config: Dict
                  , bucket: str = 'sentinel-s2-l1c'
                  ):
-        self.config = config
         self.bucket = bucket
 
     def connect(self):
         # Create one session
-        session = boto3.Session(
-            aws_access_key_id=self.config['id']
-            , aws_secret_access_key=self.config['key']
-        )
+        session = boto3.Session()
+        session.get_credentials()
 
         # Clients are thread safe
-        botocore_config = botocore.config.Config(max_pool_connections=50)
+        botocore_config = botocore.config.Config(max_pool_connections=100)
         self.boto_client = boto3.client('s3', config=botocore_config)
 
         # Improve download speed

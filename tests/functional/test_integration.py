@@ -10,12 +10,6 @@ import rasterio
 from puller import S3Cli, RGBPuller
 from image_process import WindowImageProcessor, MedianMerger
 
-KEYS_DIR = './keys/aws.json'
-
-@pytest.fixture
-def config():
-    f = open(KEYS_DIR)
-    return json.load(f)
 
 @pytest.fixture
 def preview_bucket_prefix():
@@ -34,12 +28,12 @@ def filter_rgb():
     return filter_func
 
 
-def test_find_s3_files(config, preview_bucket_prefix, filter_rgb):
+def test_find_s3_files(preview_bucket_prefix, filter_rgb):
     """
     :param config:
     :return:
     """
-    s3_cli = S3Cli(config=config)
+    s3_cli = S3Cli()
     s3_cli.connect()
 
     files_to_find = ['B04.jp2', 'B03.jp2', 'B02.jp2']
@@ -48,8 +42,8 @@ def test_find_s3_files(config, preview_bucket_prefix, filter_rgb):
         assert f['Key'].split('/')[-1] in files_to_find
 
 
-def test_find_and_download_images(config, preview_bucket_prefix, filter_rgb, tmp_path):
-    s3_cli = S3Cli(config=config)
+def test_find_and_download_images(preview_bucket_prefix, filter_rgb, tmp_path):
+    s3_cli = S3Cli()
     s3_cli.connect()
 
     files = s3_cli.find_s3_files(preview_bucket_prefix, filter_rgb)
@@ -75,8 +69,8 @@ def test_find_and_download_images(config, preview_bucket_prefix, filter_rgb, tmp
     assert len(f_r.read(1)) == 687
 
 
-def test_find_download_and_process(config, preview_bucket_prefix, filter_rgb, tmp_path):
-    s3_cli = S3Cli(config=config)
+def test_find_download_and_process(preview_bucket_prefix, filter_rgb, tmp_path):
+    s3_cli = S3Cli()
     s3_cli.connect()
 
     files = s3_cli.find_s3_files(preview_bucket_prefix, filter_rgb)

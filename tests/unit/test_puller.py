@@ -27,7 +27,7 @@ def create_s3_response(
 
 class TestRBGPuller:
 
-    s3_cli = S3Cli({}, '')
+    s3_cli = S3Cli()
 
     def test_single_char_UTM_parse(self):
         tile_id = "8DVA"
