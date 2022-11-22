@@ -11,7 +11,13 @@
 
 ## Example output:
 
-check out `program-output.md`
+Output after running: 
+
+`python s2_imagery_retriever.py 10UDV 2019-08-26T02:44:33.000000Z 2019-09-07T18:42:22.000000Z combined_image.tif` 
+
+Located in `images/final/combined_image.tiff`
+
+Short tutorial and alternative output: check out `program-output.md`
 
 ## Program details 
 
@@ -36,12 +42,11 @@ check out `program-output.md`
 
 **Set-up**
 
-`python3 -m venv venv`
-
-`source venv/bin/activate`
-
-`pip install -r requirements.txt`
-
+- `git clone https://github.com/amadeovezz/sentinel`
+- `cd` into sentinel
+- `python3 -m venv .`
+- `source ./bin/activate.fish`
+- `pip3 install -r requirements.txt`
 
 **Unit**
 
@@ -49,7 +54,7 @@ From root dir: `python -m pytest tests/unit/`
 
 **Functional**
 
-Must have aws keys configured in home directory .
+Note: Must have aws keys configured in home directory
 
 From root dir: `python -m pytest tests/functional/`
 
@@ -105,3 +110,17 @@ Notes:
       - output path: `./tmp/final/combined_image.tiff`
 - To view options:
   - `python s2_mosaicker --help`
+
+Once the program is finished running, the blue,red,green band images are located in:
+
+- `/scratch/tmp/red/`
+- `/scratch/tmp/green/`
+- `/scratch/tmp/blue/`
+
+And the final tiff:
+
+- `/scratch/tmp/final/`
+
+If you wish to re-run the program without re-downloading the images:
+
+- `python s2_mosaicker --has_pulled`
