@@ -4,10 +4,12 @@ from abc import ABC, abstractmethod
 import os
 from concurrent import futures
 import shutil
-from typing import Dict
+from typing import Dict, Tuple, List
 
 # 3rd party
 import numpy as np
+import dask
+from dask import delayed
 
 import rasterio
 from rasterio.windows import Window
@@ -29,6 +31,7 @@ class ImageProcessor(ABC):
         self.red_band_path = red_band_path
         self.green_band_path = green_band_path
         self.blue_band_path = blue_band_path
+        self.array_dtype = np.uint16
 
 
     @abstractmethod
@@ -89,10 +92,22 @@ class ArrayMerger(ABC):
         raise NotImplemented
 
 
+class FastMedianMerger(ArrayMerger):
+    def merge(self, arr: np.ndarray) -> np.ndarray:
+        """
+        WIP
+        :param arr:
+        :return:
+        """
+        return np.apply_along_axis(lambda v: np.median(v[v != 0]), 0, arr)
+
+
 class MedianMerger(ArrayMerger):
     def merge(self, arr: np.ndarray) -> np.ndarray:
         """
         :param arr: The 3d array to merge
+
+        This is incredibly slow. Trying to avoid using masked arrays here.
 
         Converts 0's to nan's, and we leverage nanmedian() here.
         Any nan that does not get converted to a 0 implies that all versions of the same image
@@ -111,6 +126,52 @@ class MedianMerger(ArrayMerger):
         return np.nan_to_num(filtered, nan=0).astype(arr.dtype)
 
 
+class ParrallelWindowProcessor(ImageProcessor):
+
+    def __init__(self, merger: ArrayMerger, window_size_row=2000, **kwargs):
+        super().__init__(**kwargs)
+        self.merger = merger
+        self.window_size_row = window_size_row
+        self.window_size_column = (0, self.img_shape_h)
+
+    def get_row_indexes(self, row_size: int, row_end: int) -> List[Tuple]:
+        start = np.arange(0, row_end, row_size).tolist()
+        end = np.arange(row_size, row_end, row_size).tolist()
+        end.append(row_end) # Compute the last element
+        return [(start[i], end[i]) for i, _ in enumerate(start)]
+
+    def process(self) -> None: #Dict[str, np.ndarray]:
+        # Setup
+        path = f'{self.blue_band_path}'
+        #output_arr = np.zeros((self.img_shape_w, self.img_shape_h), dtype=self.array_dtype)
+        row_indexes = self.get_row_indexes(self.window_size_row, self.img_shape_w)
+        output_arr = []
+        for chunk in row_indexes:
+           multi_version = self.read_chunks_of_arr(path, row_index=chunk, col_index=self.window_size_column)
+           merged = self.compute(multi_version)
+           #output_arr[chunk[0]:chunk[1],:] = merged
+           output_arr.append(merged)
+
+        final = dask.delayed(output_arr)
+        return final.compute()
+
+    @delayed
+    def compute(self, arr: np.ndarray) -> np.ndarray:
+        return self.merger.merge(arr)
+
+    @delayed
+    def read_chunks_of_arr(self, path: str, row_index: Tuple, col_index: Tuple) -> np.ndarray:
+        num_of_files = self.num_files_in_dir(path)
+        multiple_versions_arr = np.zeros((num_of_files, self.window_size_row, self.img_shape_h), dtype=self.array_dtype)
+        for i, file in enumerate(os.listdir(path)):
+            with rasterio.open(f'{path}{file}') as src:
+                arr = src.read(1, window=Window.from_slices(
+                    (row_index[0], row_index[1]), (col_index[0], col_index[1])))
+                multiple_versions_arr[i] = arr
+        return multiple_versions_arr
+
+
+
 class WindowImageProcessor(ImageProcessor):
 
     def __init__(self, merger: ArrayMerger, window_size_row=2000, **kwargs):
@@ -119,7 +180,7 @@ class WindowImageProcessor(ImageProcessor):
         self.window_size_row = window_size_row
         self.window_size_column = (0, self.img_shape_h)
 
-    def process(self) -> Dict[str, np.array]:
+    def process(self) -> Dict[str, np.ndarray]:
         with futures.ProcessPoolExecutor(max_workers=3) as executor:
             future_red = executor.submit(self.window, 'red', f'{self.red_band_path}')
             future_green = executor.submit(self.window, 'green', f'{self.green_band_path}')

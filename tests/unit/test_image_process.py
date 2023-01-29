@@ -8,7 +8,8 @@ from rasterio.transform import from_origin
 from rasterio import crs
 
 # lib
-from image_process import MedianMerger, WindowImageProcessor
+from image_process import MedianMerger, WindowImageProcessor, ParrallelWindowProcessor
+
 
 
 class TestMedianMerger:
@@ -122,10 +123,31 @@ def test_windowing(create_img, img, tmp_path):
     process.img_shape_h = img.shape[1]
 
     arr = process.window('blue', f'{tmp_path}/')
-    print(arr)
 
     assert np.all(arr[0, :] == np.array([1,1,1,2,1]))
     assert np.all(arr[1, :] == np.array([2,2,2,2,2]))
     assert np.all(arr[2, :] == np.array([3,3,3,3,3]))
     assert np.all(arr[3, :] == np.array([4,5,5,6,6]))
     assert np.all(arr[4, :] == np.array([2,2,2,2,2]))
+
+
+def test_block_windowing(create_img, img, tmp_path):
+    process = ParrallelWindowProcessor(merger=MedianMerger()
+                                       , window_size_row=2
+                                       , img_shape_w=5
+                                       , img_shape_h=5
+                                       , dest_path=''
+                                       , blue_band_path=f'{tmp_path}/')
+
+    process.img_shape_w = img.shape[0]
+    process.img_shape_h = img.shape[1]
+
+    arr = process.process()
+
+    assert np.all(arr[0, :] == np.array([1,1,1,2,1]))
+    assert np.all(arr[1, :] == np.array([2,2,2,2,2]))
+    assert np.all(arr[2, :] == np.array([3,3,3,3,3]))
+    assert np.all(arr[3, :] == np.array([4,5,5,6,6]))
+    assert np.all(arr[4, :] == np.array([2,2,2,2,2]))
+
+
