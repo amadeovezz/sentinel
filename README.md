@@ -90,10 +90,10 @@ Notes:
 
 ### Future Improvements
 
-- Improve memory and cpu performance for image processing:
-  - Investigate building a BlockImageProcessor (with raterio block reads and writes). Re-assembly logic may be challenging here.
+- Improve image processing performance
+  - There is a new PR open for this: `https://github.com/amadeovezz/sentinel/pull/1`
 - Compute hash on multi-part download to ensure integrity of file
-- The intensity values in the GeoTiff appear to be slightly off. Look into scaling / re-sampling.
+- Look into normalizing the images for human rgb images. The intensity values in the GeoTiff appear to be slightly off when observing in QGIS.
 
 ## How to run
 
