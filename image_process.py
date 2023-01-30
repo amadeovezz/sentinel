@@ -126,7 +126,7 @@ class MedianMerger(ArrayMerger):
         return np.nan_to_num(filtered, nan=0).astype(arr.dtype)
 
 
-class ParrallelWindowProcessor(ImageProcessor):
+class ParallelWindowProcessor(ImageProcessor):
 
     def __init__(self, merger: ArrayMerger, window_size_row=2000, **kwargs):
         super().__init__(**kwargs)
@@ -140,20 +140,38 @@ class ParrallelWindowProcessor(ImageProcessor):
         end.append(row_end) # Compute the last element
         return [(start[i], end[i]) for i, _ in enumerate(start)]
 
-    def process(self) -> None: #Dict[str, np.ndarray]:
-        # Setup
-        path = f'{self.blue_band_path}'
-        #output_arr = np.zeros((self.img_shape_w, self.img_shape_h), dtype=self.array_dtype)
+    def process(self) -> Dict[str, np.ndarray]:
+        with futures.ProcessPoolExecutor(max_workers=3) as executor:
+            future_red = executor.submit(self.delayed_window, f'{self.red_band_path}')
+            future_green = executor.submit(self.delayed_window,  f'{self.green_band_path}')
+            future_blue = executor.submit(self.delayed_window,  f'{self.blue_band_path}')
+
+        executor.shutdown()
+        return {
+            'red': future_red.result()
+            , 'green': future_green.result()
+            , 'blue': future_blue.result()
+        }
+
+    def delayed_window(self, path: str) -> np.ndarray:
         row_indexes = self.get_row_indexes(self.window_size_row, self.img_shape_w)
-        output_arr = []
+        results = []
+        # Delay reading and computation
         for chunk in row_indexes:
            multi_version = self.read_chunks_of_arr(path, row_index=chunk, col_index=self.window_size_column)
            merged = self.compute(multi_version)
-           #output_arr[chunk[0]:chunk[1],:] = merged
-           output_arr.append(merged)
+           results.append(merged)
 
-        final = dask.delayed(output_arr)
-        return final.compute()
+        # Parallelize computation
+        results = dask.delayed(results)
+        computed = results.compute()
+
+        # Reassemble
+        output_arr = np.zeros((self.img_shape_w, self.img_shape_h), dtype=self.array_dtype)
+        for i, result in enumerate(computed):
+            output_arr[row_indexes[i][0]:row_indexes[i][1],:] = result
+
+        return output_arr
 
     @delayed
     def compute(self, arr: np.ndarray) -> np.ndarray:
@@ -162,14 +180,17 @@ class ParrallelWindowProcessor(ImageProcessor):
     @delayed
     def read_chunks_of_arr(self, path: str, row_index: Tuple, col_index: Tuple) -> np.ndarray:
         num_of_files = self.num_files_in_dir(path)
-        multiple_versions_arr = np.zeros((num_of_files, self.window_size_row, self.img_shape_h), dtype=self.array_dtype)
+        # Are we at the last row
+        if row_index[1] == self.img_shape_w:
+            multiple_versions_arr = np.zeros((num_of_files, row_index[1] - row_index[0], self.img_shape_h), dtype=self.array_dtype)
+        else:
+            multiple_versions_arr = np.zeros((num_of_files, self.window_size_row, self.img_shape_h), dtype=self.array_dtype)
         for i, file in enumerate(os.listdir(path)):
             with rasterio.open(f'{path}{file}') as src:
                 arr = src.read(1, window=Window.from_slices(
                     (row_index[0], row_index[1]), (col_index[0], col_index[1])))
                 multiple_versions_arr[i] = arr
         return multiple_versions_arr
-
 
 
 class WindowImageProcessor(ImageProcessor):
