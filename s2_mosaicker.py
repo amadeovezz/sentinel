@@ -34,7 +34,7 @@ def main(tile_id, start_datetime, end_datetime, output_path, combine_method, log
     # Manipulate data
     merger = None
     if combine_method == 'median':
-        merger = MedianMerger()
+        merger = MedianMerger(include_zeros=False)
 
     process = WindowImageProcessor(merger=merger, window_size_row=1000, dest_path=output_path)
     final_imgs = process.process()

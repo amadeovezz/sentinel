@@ -89,13 +89,13 @@ def test_find_download_and_process(preview_bucket_prefix, filter_rgb, tmp_path):
 
     dest_path =  f'{tmp_path}/final/'
 
-    w = WindowImageProcessor( img_shape_w=687
-                             , img_shape_h=687
+    w = WindowImageProcessor( img_rows=687
+                             , img_cols=687
                              , red_band_path=red_path
                              , green_band_path=green_path
                              , blue_band_path=blue_path
                              , dest_path= dest_path
-                             , merger=MedianMerger(), window_size_row=100)
+                             , merger=MedianMerger(include_zeros=False), window_size_row=100)
 
     final_images = w.process()
 

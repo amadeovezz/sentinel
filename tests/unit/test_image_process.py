@@ -11,7 +11,6 @@ from rasterio import crs
 from image_process import MedianMerger, WindowImageProcessor, ParallelWindowProcessor
 
 
-
 class TestMedianMerger:
 
     def test_compute_median_even(self):
@@ -19,11 +18,11 @@ class TestMedianMerger:
             [
                 [[1, 1, 1],
                  [1, 1, 1]]
-              , [[3, 2, 3],
-                 [5, 6, 7]]
+                , [[3, 2, 3],
+                   [5, 6, 7]]
             ], dtype='uint16'
         )
-        m = MedianMerger()
+        m = MedianMerger(include_zeros=False)
         out = m.merge(arr)
         assert np.all(out[0, :] == np.array([2, 1, 2]))
         assert np.all(out[1, :] == np.array([3, 3, 4]))
@@ -33,13 +32,13 @@ class TestMedianMerger:
             [
                 [[1, 1, 1],
                  [1, 1, 1]]
-              , [[3, 3, 3],
-                 [7, 5, 3]]
-              , [[5, 5, 5],
-                 [5, 10, 1]]
+                , [[3, 3, 3],
+                   [7, 5, 3]]
+                , [[5, 5, 5],
+                   [5, 10, 1]]
             ], dtype='uint16'
         )
-        m = MedianMerger()
+        m = MedianMerger(include_zeros=False)
         out = m.merge(arr)
         assert np.all(out[0, :] == np.array([3, 3, 3]))
         assert np.all(out[1, :] == np.array([5, 5, 1]))
@@ -49,12 +48,12 @@ class TestMedianMerger:
             [
                 [[0, 0, 0],
                  [0, 0, 0]]
-              , [[0, 0, 0],
-                 [0, 0, 0]]
+                , [[0, 0, 0],
+                   [0, 0, 0]]
             ], dtype='uint16'
 
         )
-        m = MedianMerger()
+        m = MedianMerger(include_zeros=False)
         out = m.merge(arr)
         assert np.all(out[0, :] == np.array([0, 0, 0]))
         assert np.all(out[1, :] == np.array([0, 0, 0]))
@@ -64,12 +63,12 @@ class TestMedianMerger:
             [
                 [[0, 2.5, 0],
                  [1, 1, 1]]
-              , [[3, 3, 3],
-                 [0, 0.0, 1.3]]
+                , [[3, 3, 3],
+                   [0, 0.0, 1.3]]
             ], dtype='uint16'
 
         )
-        m = MedianMerger()
+        m = MedianMerger(include_zeros=False)
         out = m.merge(arr)
         assert np.all(out[0, :] == np.array([3, 2, 3]))
         assert np.all(out[1, :] == np.array([1, 1, 1]))
@@ -109,43 +108,40 @@ def create_img(img, img_2, tmp_path):
     img_2_path = f'{tmp_path}/img-2.jp2'
 
     with rasterio.open(img_1_path, 'w', **meta) as dst:
-        dst.write(img,1)
+        dst.write(img, 1)
 
     with rasterio.open(img_2_path, 'w', **meta) as dst:
-        dst.write(img_2,1)
+        dst.write(img_2, 1)
 
 
 def test_windowing(create_img, img, tmp_path):
-    process = WindowImageProcessor(merger=MedianMerger()
-                                , window_size_row=2
-                                , dest_path='')
-    process.img_shape_w = img.shape[0]
-    process.img_shape_h = img.shape[1]
+    process = WindowImageProcessor(merger=MedianMerger(include_zeros=False)
+                                   , window_size_row=2
+                                   , img_rows=img.shape[0]
+                                   , img_cols=img.shape[1]
+                                   , dest_path='')
 
     arr = process.window('blue', f'{tmp_path}/')
 
-    assert np.all(arr[0, :] == np.array([1,1,1,2,1]))
-    assert np.all(arr[1, :] == np.array([2,2,2,2,2]))
-    assert np.all(arr[2, :] == np.array([3,3,3,3,3]))
-    assert np.all(arr[3, :] == np.array([4,5,5,6,6]))
-    assert np.all(arr[4, :] == np.array([2,2,2,2,2]))
+    assert np.all(arr[0, :] == np.array([1, 1, 1, 2, 1]))
+    assert np.all(arr[1, :] == np.array([2, 2, 2, 2, 2]))
+    assert np.all(arr[2, :] == np.array([3, 3, 3, 3, 3]))
+    assert np.all(arr[3, :] == np.array([4, 5, 5, 6, 6]))
+    assert np.all(arr[4, :] == np.array([2, 2, 2, 2, 2]))
 
 
 def test_block_windowing(create_img, img, tmp_path):
     process = ParallelWindowProcessor(merger=MedianMerger()
-                                      , window_size_row=2
-                                      , img_shape_w=5
-                                      , img_shape_h=5
+                                      , std_block_size=(2, 2)
+                                      , img_rows=img.shape[0]
+                                      , img_cols=img.shape[1]
                                       , dest_path=''
                                       )
 
-    process.img_shape_w = img.shape[0]
-    process.img_shape_h = img.shape[1]
-
     arr = process.delayed_window(f'{tmp_path}/')
 
-    assert np.all(arr[0, :] == np.array([1,1,1,2,1]))
-    assert np.all(arr[1, :] == np.array([2,2,2,2,2]))
-    assert np.all(arr[2, :] == np.array([3,3,3,3,3]))
-    assert np.all(arr[3, :] == np.array([4,5,5,6,6]))
-    assert np.all(arr[4, :] == np.array([2,2,2,2,2]))
+    assert np.all(arr[0, :] == np.array([1, 1, 1, 2, 1]))
+    assert np.all(arr[1, :] == np.array([2, 2, 2, 2, 2]))
+    assert np.all(arr[2, :] == np.array([3, 3, 3, 3, 3]))
+    assert np.all(arr[3, :] == np.array([4, 5, 5, 6, 6]))
+    assert np.all(arr[4, :] == np.array([2, 2, 2, 2, 2]))
