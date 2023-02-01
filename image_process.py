@@ -173,7 +173,7 @@ class ParallelWindowProcessor(ImageProcessor):
 
         - We leverage dask.delayed() to parallelize reading and computing median values.
 
-        - We leverage dask arrays and ensure that our chunk sizes match the jp2 files block size.
+        - We leverage dask arrays for blocked algorithms and ensure that our chunk sizes match the jp2 files block size.
 
 
         The overall approach to Windowed processing is similar to the WindowImageProcessor, however, this class
@@ -282,7 +282,7 @@ class WindowImageProcessor(ImageProcessor):
         super().__init__(**kwargs)
         self.merger = merger
         self.window_size_row = window_size_row
-        self.window_size_column = (0, self.img_rows)
+        self.window_size_column = (0, self.img_cols)
 
     def process(self) -> Dict[str, np.ndarray]:
         with futures.ProcessPoolExecutor(max_workers=3) as executor:
