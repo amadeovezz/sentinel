@@ -145,7 +145,7 @@ class MedianMerger(ArrayMerger):
             return np.nan_to_num(filtered, nan=0).astype(arr.dtype)
 
 
-class DaskMedianMerger(ArrayMerger):
+class DMedianMerger(DArrayMerger):
 
     def __init__(self, include_zeros=True):
         self.included_zeros = include_zeros
@@ -192,10 +192,11 @@ class ParallelWindowProcessor(ImageProcessor):
         self.max_num_of_sections = round(self.img_rows / self.std_block_size[0]) - 1  # indexed at zero
         self.merger = merger
 
-    def get_block_windows(self, section_idx: int) -> List[Window]:
+    def get_windows_for_section(self, section_idx: int) -> List[Window]:
         """
+        Generates a list of rasterio.Window() objects per section in a jp2 file.
 
-        :param section_idx:
+        :param section_idx: The section
         :return:
         """
         if section_idx > self.max_num_of_sections:
@@ -234,7 +235,7 @@ class ParallelWindowProcessor(ImageProcessor):
         delayed_results = []
         # Delay reading and computation
         for section_idx in range(1, self.max_num_of_sections + 1):
-            windows = self.get_block_windows(section_idx)
+            windows = self.get_windows_for_section(section_idx)
             multi_version = self.read_chunks_of_arr(path, windows)
             merged = self.compute(multi_version)
             delayed_results.append(merged)
